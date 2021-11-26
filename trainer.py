@@ -76,8 +76,11 @@ class Trainer(object):
         self.num_conv = config.num_conv
         self.w1 = config.w1
         self.w2 = config.w2
-
-        self.output_shape = get_conv_shape(self.x)[1:-1] + [1]
+        self.use_c = config.use_curl
+        if self.use_c:
+            self.output_shape = get_conv_shape(self.x)[1:-1] + [1]
+        else:
+            self.output_shape = get_conv_shape(self.x)[1:]
 
         self.optimizer = config.optimizer
         self.beta1 = config.beta1
@@ -138,9 +141,13 @@ class Trainer(object):
         g._finalized = False
 
     def build_model(self):
-        self.G_s, self.G_var = GeneratorBE(self.y, self.filters, self.output_shape, 
-                                           num_conv=self.num_conv, repeat=self.repeat)
-        self.G_ = curl(self.G_s)
+        if self.use_c:
+            self.G_s, self.G_var = GeneratorBE(self.y, self.filters, self.output_shape, 
+                                               num_conv=self.num_conv, repeat=self.repeat)
+            self.G_ = curl(self.G_s)
+        else:
+            self.G_, self.G_var = GeneratorBE(self.y, self.filters, self.output_shape,
+                                              num_conv=self.num_conv, repeat=self.repeat)
         self.G = denorm_img(self.G_) # for debug
 
         self.G_jaco_, self.G_vort_ = jacobian(self.G_)
@@ -182,9 +189,10 @@ class Trainer(object):
             tf.summary.scalar("misc/g_lr", self.g_lr),
         ]
 
-        summary += [
-            tf.summary.image("G_s", self.G_s[:,::-1]),
-        ]
+        if self.use_c:
+            summary += [
+                tf.summary.image("G_s", self.G_s[:,::-1]),
+            ]
 
         self.summary_op = tf.summary.merge(summary)
         
@@ -195,9 +203,6 @@ class Trainer(object):
         self.summary_once = tf.summary.merge(summary) # call just once
 
     def train(self):
-        self.train_()
-
-    def train_(self):
         # test1: varying on each axis
         z_range = [-1, 1]
         z_shape = (self.b_num, self.c_num)
@@ -260,14 +265,15 @@ class Trainer(object):
     def build_test_model(self):
         # build a model for testing
         self.z = tf.placeholder(dtype=tf.float32, shape=[self.test_b_num, self.c_num])
-        self.G_s, _ = GeneratorBE(self.z, self.filters, self.output_shape,
-                                    num_conv=self.num_conv, repeat=self.repeat, reuse=True)
-        self.G_ = curl(self.G_s)
+        if self.use_c:
+            self.G_s, _ = GeneratorBE(self.z, self.filters, self.output_shape,
+                                      num_conv=self.num_conv, repeat=self.repeat, reuse=True)
+            self.G_ = curl(self.G_s)
+        else:
+            self.G_, _ = GeneratorBE(self.z, self.filters, self.output_shape,
+                                     num_conv=self.num_conv, repeat=self.repeat, reuse=True)
 
     def test(self):
-        self.test_()
-
-    def test_(self):
         self.build_test_model()
         
         p1, p2 = 10, 2

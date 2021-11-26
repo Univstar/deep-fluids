@@ -316,7 +316,6 @@ def main():
 
 			s.step()
 		gc.collect()
-		break
 
 	vrange_file = os.path.join(args.log_dir, 'v_range.txt')
 	with open(vrange_file, 'w') as f:

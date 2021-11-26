@@ -135,19 +135,6 @@ class BatchManager(object):
     def batch(self):
         return self.q.dequeue_many(self.batch_size)
 
-    def batch_(self, b_num):
-        assert(len(self.paths) % b_num == 0)
-        x_batch = []
-        y_batch = []
-        for i, filepath in enumerate(self.paths):
-            x, _ = preprocess(filepath, self.data_type, self.x_range, self.y_range)
-            x_batch.append(x)
-
-            if (i+1) % b_num == 0:
-                yield np.array(x_batch), y_batch
-                x_batch.clear()
-                y_batch.clear()
-
     def denorm(self, x=None, y=None):
         # input range [-1, 1] -> original range
         if x is not None:
@@ -166,7 +153,7 @@ class BatchManager(object):
             filelist.append(path_format % tuple(p))
         return filelist
 
-    def random_list2d(self, num):
+    def random_list(self, num):
         xs = []
         pis = []
         zis = []
@@ -193,10 +180,6 @@ class BatchManager(object):
             zis.append(zi)
         return np.array(xs), pis, zis
 
-    def random_list(self, num):
-        return self.random_list2d(num)
-    
-
 def preprocess(file_path, data_type, x_range, y_range):    
     with np.load(file_path) as data:
         x = data['x']
@@ -220,44 +203,3 @@ def preprocess(file_path, data_type, x_range, y_range):
     for i, ri in enumerate(y_range):
         y[i] = (y[i]-ri[0]) / (ri[1]-ri[0]) * 2 - 1
     return x, y
-
-def test2d(config):
-    prepare_dirs_and_logger(config)
-    tf.set_random_seed(config.random_seed)
-
-    batch_manager = BatchManager(config)
-
-    # thread test
-    sess_config = tf.ConfigProto()
-    sess_config.gpu_options.allow_growth = True
-    sess_config.allow_soft_placement = True
-    sess_config.log_device_placement = False
-    sess = tf.Session(config=sess_config)
-    batch_manager.start_thread(sess)
-
-    x, y = batch_manager.batch() # [-1, 1]
-    x_ = x.eval(session=sess)
-    # y_ = y.eval(session=sess)
-    batch_manager.stop_thread()
-
-    x_w = vort_np(x_)
-    x_w /= np.abs(x_w).max()
-    x_w = (x_w+1)*0.5
-    x_w = np.uint8(plt.cm.RdBu(x_w[...,0])*255)[...,:3]
-    x_ = (x_+1)*127.5 # [0, 255]
-    b_ch = np.ones([config.batch_size,config.res_y,config.res_x,1])*127.5
-    x_ = np.concatenate((x_, b_ch), axis=-1)
-    x_ = np.concatenate((x_, x_w), axis=0)
-    save_image(x_, '{}/x_fixed.png'.format(config.model_dir))
-
-    # random pick from parameter space
-    x, pi, zi = batch_manager.random_list(config.batch_size)
-    x_w = vort_np(x/127.5-1)
-    x_w /= np.abs(x_w).max()
-    x_w = (x_w+1)*0.5
-    x_w = np.uint8(plt.cm.RdBu(x_w[...,0])*255)[...,:3]
-    x = np.concatenate((x, x_w), axis=0)
-    save_image(x, '{}/x.png'.format(config.model_dir))
-    with open('{}/x_p.txt'.format(config.model_dir), 'w') as f:
-        f.write(str(pi))
-        f.write(str(zi))
