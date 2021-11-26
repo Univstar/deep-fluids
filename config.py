@@ -13,26 +13,15 @@ def add_argument_group(name):
 
 # Network
 net_arg = add_argument_group('Network')
-net_arg.add_argument('--is_3d', type=str2bool, default=False)
 net_arg.add_argument('--res_x', type=int, default=96)
 net_arg.add_argument('--res_y', type=int, default=128)
 net_arg.add_argument('--res_z', type=int, default=32)
 net_arg.add_argument('--repeat', type=int, default=0)
 net_arg.add_argument('--filters', type=int, default=128)
 net_arg.add_argument('--num_conv', type=int, default=4)
-net_arg.add_argument('--use_curl', type=str2bool, default=True)
 net_arg.add_argument('--w1', type=float, default=1.0, help='weight for l1')
 net_arg.add_argument('--w2', type=float, default=1.0, help='weight for jacobian')
 net_arg.add_argument('--w3', type=float, default=0.005, help='weight for discriminator')
-net_arg.add_argument('--arch', type=str, default='de', choices=['de', 'dg', 'ae', 'nn'],
-                     help='dec, dec+discriminator, auto-encoder, multi-layer perceptron')
-# for AE and NN
-net_arg.add_argument('--z_num', type=int, default=16)
-net_arg.add_argument('--use_sparse', type=str2bool, default=False)
-net_arg.add_argument('--sparsity', type=float, default=0.01)
-net_arg.add_argument('--w4', type=float, default=1.0, help='weight for p')
-net_arg.add_argument('--w5', type=float, default=1.0, help='weight for sparsity constraint')
-net_arg.add_argument('--w_size', type=int, default=5)
 
 # Data
 data_arg = add_argument_group('Data')
