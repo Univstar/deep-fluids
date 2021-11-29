@@ -33,15 +33,16 @@ def main():
 	parser.add_argument('--epochs',          type=int,            default=100,    help='number of epochs to train (default: 100)')
 	parser.add_argument('--lr-max',          type=float,          default=1e-4,   help='maximal learning rate (default: 1e-4)')
 	parser.add_argument('--lr-min',          type=float,          default=2.5e-6, help='minimal learning rate (default: 2.5e-6)')
-	# parser.add_argument('--gamma', type=float, default=0.7, metavar='M', help='learning rate step gamma (default: 0.7)')
-	# parser.add_argument('--dry-run', action='store_true', default=False, help='quickly check a single pass')
-	# parser.add_argument('--save-model', action='store_true', default=False, help='for Saving the current Model')
+	parser.add_argument('--beta-1',          type=float,          default=0.5,    help='smoothing coefficient beta_1 (default: 0.5)')
+	parser.add_argument('--beta-2',          type=float,          default=0.999,  help='smoothing coefficient beta_2 (default: 0.999)')
+	
 	args = parser.parse_args()
 	use_cuda = not args.no_cuda and torch.cuda.is_available()
 
 	# Initialize torch with kwargs.
 	torch.manual_seed(args.seed)
 	device = torch.device("cuda" if use_cuda else "cpu")
+	print(f'\033[36m[*] Device: {device}\033[0m')
 	kwargs = {'batch_size': (args.test_batch_size if args.test else args.batch_size), 'num_workers': args.num_workers}
 	if not args.test: kwargs.update({'shuffle': True})
 	if use_cuda: kwargs.update({'pin_memory': True})
@@ -50,7 +51,7 @@ def main():
 
 	# Set network and run.
 	model = Network(torch.Tensor([dataset.res_y, dataset.res_x, 2])).to(device)
-	optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [0.5, 0.999])
+	optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
 	scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 	
 	for epoch in range(1, args.epochs + 1):
