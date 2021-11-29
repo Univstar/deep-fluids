@@ -1,205 +1,59 @@
 import os
 from glob import glob
-
-import threading
-import multiprocessing
-import signal
-import sys
-from datetime import datetime
-
-import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import torch
+from torch.utils.data import Dataset
 
-from ops import *
+class FluidDataset(Dataset):
+	def __init__(self, dir):
+		self.dir = dir
+		print(f"\033[32m[*] Loading the dataset from {self.dir}...")
 
-class BatchManager(object):
-    def __init__(self, config):
-        self.rng = np.random.RandomState(config.random_seed)
-        self.root = config.data_path        
+		# Read data generation arguments.
+		self.args = {}
+		with open(os.path.join(self.dir, 'args.txt'), 'r') as file:
+			while True:
+				line = file.readline()
+				if not line: break
+				key, value = line[:-1].split(': ')
+				self.args[key] = value
+		
+		# Initialize meta data.
+		self.paths = sorted(glob(f"{self.dir}/v/*"))
+		self.cnt_p = int(self.args['num_param'])
+		self.res_x = int(self.args['resolution_x'])
+		self.res_y = int(self.args['resolution_y'])
+		print(f"[*] - {len(self.paths)} items. {self.cnt_p} parameters. {self.res_x}x{self.res_y}.")
+		
+		# Set value ranges.
+		r = np.loadtxt(os.path.join(self.dir, 'v_range.txt'))
+		self.v_max = max(abs(r[0]), abs(r[1]))
+		print(f"[*] - v_max: {self.v_max}")
 
-        # read data generation arguments
-        self.args = {}
-        with open(os.path.join(self.root, 'args.txt'), 'r') as f:
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                arg, arg_value = line[:-1].split(': ')
-                self.args[arg] = arg_value
+		self.p_range = []
+		self.p_num = []
+		for i in range(self.cnt_p):
+			pi_name = self.args[f'p{i}']
+			pi_min = float(self.args[f'min_{pi_name}'])
+			pi_max = float(self.args[f'max_{pi_name}'])
+			pi_num = int(self.args[f'num_{pi_name}'])
+			print(f"[*] - {pi_name}, {pi_num} values, ranged in [{pi_min}, {pi_max}].")
+			self.p_range.append([pi_min, pi_max])
+			self.p_num.append(pi_num)
+		
+		print("\033[0m", end="")
 
-        self.paths = sorted(glob("{}/{}/*".format(self.root, config.data_type[0])))
-        
-        self.num_samples = len(self.paths)
-        assert(self.num_samples > 0)
-        self.batch_size = config.batch_size
-        self.epochs_per_step = self.batch_size / float(self.num_samples) # per epoch
+	def __getitem__(self, index):
+		with np.load(self.paths[index]) as data:
+			v = torch.from_numpy(data['x']).float()
+			p = torch.from_numpy(data['y']).float()
+		
+		# Normalize value to [-1, +1].
+		v /= self.v_max
+		for i, ri in enumerate(self.p_range):
+			p[i] = (p[i] - ri[0]) / (ri[1] - ri[0]) * 2 - 1
+		
+		return p, v
 
-        self.data_type = config.data_type
-        if self.data_type == 'velocity':
-            depth = 2
-        else:
-            depth = 1
-        
-        self.res_x = config.res_x
-        self.res_y = config.res_y
-        self.res_z = config.res_z
-        self.depth = depth
-        self.c_num = int(self.args['num_param'])
-
-        feature_dim = [self.res_y, self.res_x, self.depth]
-        
-        label_dim = [self.c_num]
-
-        min_after_dequeue = 5000
-        capacity = min_after_dequeue + 3 * self.batch_size
-        self.q = tf.FIFOQueue(capacity, [tf.float32, tf.float32], [feature_dim, label_dim])
-        self.x = tf.placeholder(dtype=tf.float32, shape=feature_dim)
-        self.y = tf.placeholder(dtype=tf.float32, shape=label_dim)
-        self.enqueue = self.q.enqueue([self.x, self.y])
-        self.num_threads = np.amin([config.num_worker, multiprocessing.cpu_count(), self.batch_size])
-
-        r = np.loadtxt(os.path.join(self.root, self.data_type[0]+'_range.txt'))
-        self.x_range = max(abs(r[0]), abs(r[1]))
-        self.y_range = []
-        self.y_num = []
-
-        for i in range(self.c_num):
-            p_name = self.args['p%d' % i]
-            p_min = float(self.args['min_{}'.format(p_name)])
-            p_max = float(self.args['max_{}'.format(p_name)])
-            p_num = int(self.args['num_{}'.format(p_name)])
-            self.y_range.append([p_min, p_max])
-            self.y_num.append(p_num)
-
-    def __del__(self):
-        try:
-            self.stop_thread()
-        except AttributeError:
-            pass
-
-    def start_thread(self, sess):
-        print('%s: start to enque with %d threads' % (datetime.now(), self.num_threads))
-
-        # Main thread: create a coordinator.
-        self.sess = sess
-        self.coord = tf.train.Coordinator()
-
-        # Create a method for loading and enqueuing
-        def load_n_enqueue(sess, enqueue, coord, paths, rng,
-                           x, y, data_type, x_range, y_range):
-            with coord.stop_on_exception():                
-                while not coord.should_stop():
-                    id = rng.randint(len(paths))
-                    x_, y_ = preprocess(paths[id], data_type, x_range, y_range)
-                    sess.run(enqueue, feed_dict={x: x_, y: y_})
-
-        # Create threads that enqueue
-        self.threads = [threading.Thread(target=load_n_enqueue, 
-                                          args=(self.sess, 
-                                                self.enqueue,
-                                                self.coord,
-                                                self.paths,
-                                                self.rng,
-                                                self.x,
-                                                self.y,
-                                                self.data_type,
-                                                self.x_range,
-                                                self.y_range)
-                                          ) for i in range(self.num_threads)]
-
-        # define signal handler
-        def signal_handler(signum, frame):
-            #print "stop training, save checkpoint..."
-            #saver.save(sess, "./checkpoints/VDSR_norm_clip_epoch_%03d.ckpt" % epoch ,global_step=global_step)
-            print('%s: canceled by SIGINT' % datetime.now())
-            self.coord.request_stop()
-            self.sess.run(self.q.close(cancel_pending_enqueues=True))
-            self.coord.join(self.threads)
-            sys.exit(1)
-        signal.signal(signal.SIGINT, signal_handler)
-
-        # Start the threads and wait for all of them to stop.
-        for t in self.threads:
-            t.start()
-
-    def stop_thread(self):
-        # dirty way to bypass graph finilization error
-        g = tf.get_default_graph()
-        g._finalized = False
-
-        self.coord.request_stop()
-        self.sess.run(self.q.close(cancel_pending_enqueues=True))
-        self.coord.join(self.threads)
-
-    def batch(self):
-        return self.q.dequeue_many(self.batch_size)
-
-    def denorm(self, x=None, y=None):
-        # input range [-1, 1] -> original range
-        if x is not None:
-            x *= self.x_range
-
-        if y is not None:
-            r = self.y_range
-            for i, ri in enumerate(self.y_range):
-                y[:,i] = (y[:,i]+1) * 0.5 * (ri[1]-ri[0]) + ri[0]
-        return x, y
-
-    def list_from_p(self, p_list):
-        path_format = os.path.join(self.root, self.data_type[0], self.args['path_format'])
-        filelist = []
-        for p in p_list:
-            filelist.append(path_format % tuple(p))
-        return filelist
-
-    def random_list(self, num):
-        xs = []
-        pis = []
-        zis = []
-        for _ in range(num):
-            pi = []
-            for y_max in self.y_num:
-                pi.append(self.rng.randint(y_max))
-
-            filepath = self.list_from_p([pi])[0]
-            x, y = preprocess(filepath, self.data_type, self.x_range, self.y_range)
-            if self.data_type[0] == 'v':
-                b_ch = np.zeros((self.res_y, self.res_x, 1))
-                x = np.concatenate((x, b_ch), axis=-1)
-            elif self.data_type[0] == 'l':
-                offset = 0.5
-                eps = 1e-3
-                x[x<(offset+eps)] = -1
-                x[x>-1] = 1
-            x = np.clip((x+1)*127.5, 0, 255)
-            zi = [(p/float(self.y_num[i]-1))*2-1 for i, p in enumerate(pi)] # [-1,1]
-
-            xs.append(x)
-            pis.append(pi)
-            zis.append(zi)
-        return np.array(xs), pis, zis
-
-def preprocess(file_path, data_type, x_range, y_range):    
-    with np.load(file_path) as data:
-        x = data['x']
-        y = data['y']
-
-    # # ############## for old data
-    # if x.ndim == 4:
-    #     x = x.transpose([2,0,1,3]) # yxzd -> zyxd
-    # else:
-    #     y = y[None,]
-    #     x = x[:,::-1] # horizontal flip
-    # else:
-    #     x = x[::-1] # horizontal flip
-
-    # normalize
-    if data_type[0] == 'd':
-        x = x*2 - 1
-    else:
-        x /= x_range
-        
-    for i, ri in enumerate(y_range):
-        y[i] = (y[i]-ri[0]) / (ri[1]-ri[0]) * 2 - 1
-    return x, y
+	def __len__(self):
+		return len(self.paths)
