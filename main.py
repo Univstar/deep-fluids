@@ -29,7 +29,7 @@ def main():
                         default=False,  help='selects the test mode')
     parser.add_argument('--no-cuda',         action='store_true',
                         default=False,  help='disables the cuda device')
-    parser.add_argument('--name',            type=str,
+    parser.add_argument('--name',      default='smoke_pos21_size5_f200',   type=str,
                         help='the name of the dataset')
     parser.add_argument('--batch-size',      type=int,            default=8,
                         help='input batch size for training (default: 8)')
