@@ -16,11 +16,17 @@ def train(args, model, device, loader, optimizer, epoch):
     loss_fn = torch.nn.L1Loss()
     for data, target in loop:
         data, target = data.to(device), target.to(device)
+        jaco_gt, vort_gt = jacobian(target)
         optimizer.zero_grad()
+
         output = model(data)
         if args.use_curl: output = curl(output)
-        loss = loss_fn(output, target)
+        else: output = nchw_to_nhwc(output)
+        jaco, vort = jacobian(output)
+
+        loss = loss_fn(output, target) + loss_fn(jaco, jaco_gt)
         loss.backward()
+
         optimizer.step()
         loop.set_postfix(loss=f'{loss.item():.6e}')
 
