@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--lr-min',          type=float,          default=2.5e-6, help='minimal learning rate (default: 2.5e-6)')
     parser.add_argument('--beta-1',          type=float,          default=0.5,    help='smoothing coefficient beta_1 (default: 0.5)')
     parser.add_argument('--beta-2',          type=float,          default=0.999,  help='smoothing coefficient beta_2 (default: 0.999)')
+    parser.add_argument('--num-conv',        type=int,            default=4,      help='the number of convolutional layers (default: 4)')
+    parser.add_argument('--num-chnl',        type=int,            default=128,    help='the number of channels (default: 128)')
 
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -56,7 +58,7 @@ def main():
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
 
     # Set network and run.
-    model = DFModel(dataset.cnt_p, 16, 4, (dataset.res_y, dataset.res_x, 1)).to(device)
+    model = DFModel(dataset.cnt_p, 16, args.num_conv, (dataset.res_y, dataset.res_x, 1)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 
