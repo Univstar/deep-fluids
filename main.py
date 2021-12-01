@@ -59,6 +59,7 @@ def main():
 
     # Set network and run.
     model = DFModel(dataset.cnt_p, 16, args.num_conv, (dataset.res_y, dataset.res_x, 1)).to(device)
+    print(model)
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 

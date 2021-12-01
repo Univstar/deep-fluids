@@ -9,6 +9,7 @@ class ResModel(nn.Module):
         self.conv = nn.Sequential()
         for i in range(num_conv):
             self.conv.add_module(f'conv{i}', nn.Conv2d(**conv_args))
+            self.conv.add_module(f'relu{i}', nn.LeakyReLU(0.2))
             self.scale = scale
         self.scale = scale
         if self.scale is not None:
@@ -42,15 +43,15 @@ class DFModel(nn.Module):
             'padding': 1
         }
 
-        self.conv.add_module('conv1', nn.Conv2d(in_channels=1, out_channels=num_chnl, kernel_size=3, stride=1, padding=1))
-        self.conv.add_module('relu1', nn.LeakyReLU(0.2))
+        self.conv.add_module('convb', nn.Conv2d(in_channels=1, out_channels=num_chnl, kernel_size=3, stride=1, padding=1))
+        self.conv.add_module('relub', nn.LeakyReLU(0.2))
         for i in range(layer_num):
             if i < layer_num-1:
                 self.conv.add_module(f'res{i}', ResModel(num_conv, conv_args, 2))
             else:
                 self.conv.add_module(f'res{i}', ResModel(num_conv, conv_args, None))
-                self.conv.add_module(f'conv{i}', nn.Conv2d(in_channels=num_chnl, out_channels=output_shape[-1], kernel_size=3, stride=1, padding=1))
-                self.conv.add_module(f'relu{i}', nn.LeakyReLU(0.2))
+        self.conv.add_module(f'conve', nn.Conv2d(in_channels=num_chnl, out_channels=output_shape[-1], kernel_size=3, stride=1, padding=1))
+        self.conv.add_module(f'relue', nn.LeakyReLU(0.2))
 
     def curl(self, x):
         u = x[..., 1:, :] - x[..., :-1, :]  # ds/dy
