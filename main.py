@@ -19,7 +19,7 @@ def train(args, model, device, loader, optimizer, epoch):
         optimizer.zero_grad()
         output = model(data)
         if args.use_curl: output = curl(output)
-        loss = loss_fn(output.flatten(), target.flatten())
+        loss = loss_fn(output, target)
         loss.backward()
         optimizer.step()
         loop.set_postfix(loss=f'{loss.item():.6e}')
