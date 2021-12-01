@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from data import FluidDataset
 from model import DFModel
+from util import *
 
 
 def train(args, model, device, loader, optimizer, epoch):
@@ -17,6 +18,7 @@ def train(args, model, device, loader, optimizer, epoch):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
+        if args.use_curl: output = curl(output)
         loss = loss_fn(output.flatten(), target.flatten())
         loss.backward()
         optimizer.step()
@@ -28,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description='Deep fluids: a PyTorch version')
     parser.add_argument('--test',            action='store_true', default=False,  help='selects the test mode')
     parser.add_argument('--no-cuda',         action='store_true', default=False,  help='disables the cuda device')
+    parser.add_argument('--use-curl',        action='store_true', default=False,  help='enables curl operator')
     parser.add_argument('--name',            type=str,                            help='the name of the dataset')
     parser.add_argument('--batch-size',      type=int,            default=8,      help='input batch size for training (default: 8)')
     parser.add_argument('--test-batch-size', type=int,            default=100,    help='input batch size for testing (default: 100)')
@@ -58,7 +61,13 @@ def main():
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
 
     # Set network and run.
-    model = DFModel(dataset.cnt_p, 16, args.num_conv, (dataset.res_y, dataset.res_x, 1)).to(device)
+    model = DFModel(
+        dataset.cnt_p,
+        args.num_chnl,
+        args.num_conv,
+        (dataset.res_y, dataset.res_x, (1 if args.use_curl else 2))
+    )
+    model = model.to(device)
     print(model)
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
