@@ -46,7 +46,7 @@ class DFModel(nn.Module):
         super(DFModel, self).__init__()
         layer_num = int(np.log2(np.max(output_shape[:-1]))) - 2
 
-        self.first_shape = [int(i/np.power(2, layer_num - 1))
+        self.first_shape = [channel_num] + [int(i/np.power(2, layer_num - 1))
                        for i in output_shape[:-1]]
 
         self.fc = nn.Linear(input_shape, np.prod(self.first_shape))
@@ -61,7 +61,7 @@ class DFModel(nn.Module):
             'padding': 1
         }
 
-        self.conv.add_module('conv1', nn.Conv2d(in_channels=1, out_channels=channel_num, kernel_size=3, stride=1, padding=1))
+        self.conv.add_module('conv1', nn.Conv2d(in_channels=channel_num, out_channels=channel_num, kernel_size=3, stride=1, padding=1))
         for i in range(layer_num):
             if i < layer_num-1:
                 self.conv.add_module(f'res{i}', ResModel(conv_num, conv_args, 2))
@@ -81,5 +81,5 @@ class DFModel(nn.Module):
     def forward(self, x0):
         first_layer = self.fc(x0)
         
-        output = self.conv(first_layer.view(-1,1, *self.first_shape))
+        output = self.conv(first_layer.view(-1, *self.first_shape))
         return self.curl(output)
