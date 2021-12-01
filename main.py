@@ -56,7 +56,7 @@ def main():
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
 
     # Set network and run.
-    model = DFModel(dataset.cnt_p, 16, 4, (dataset.res_y, dataset.res_x, 1))
+    model = DFModel(dataset.cnt_p, 16, 4, (dataset.res_y, dataset.res_x, 1)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 
