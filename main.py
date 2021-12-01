@@ -68,7 +68,6 @@ def main():
         (dataset.res_y, dataset.res_x, (1 if args.use_curl else 2))
     )
     model = model.to(device)
-    print(model)
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 
