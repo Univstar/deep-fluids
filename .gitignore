@@ -1,6 +1,5 @@
 __pycache__
-data/*
-log/*
-!data/.gitkeep
-!log/.gitkeep
+data
+log
 waveletNoiseTile.bin
+.vscode

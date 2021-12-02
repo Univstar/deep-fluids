@@ -2,54 +2,15 @@ import argparse
 import torch
 from torch.utils.data import Dataset
 import time
-from tqdm import tqdm
 import os
 
 from data import FluidDataset
 from model import DFModel
-from util import *
 from logger import Logger
-
-def train(args, model, device, loader, optimizer, epoch, log_param):
-    model.train()
-    loop = tqdm(enumerate(loader), total=len(loader))
-    loop.set_description(f'Epoch [{epoch}/{args.epochs}]')
-    loss_fn = torch.nn.L1Loss()
-        
-    for i, (data, target) in loop:
-        data, target = data.to(device), target.to(device)
-        jaco_gt, vort_gt = jacobian(target)
-        optimizer.zero_grad()
-
-        output = model(data)
-        if args.no_curl: output = nchw_to_nhwc(output)
-        else: output = curl(output)
-        jaco, vort = jacobian(output)
-
-        loss = loss_fn(output, target) + loss_fn(jaco, jaco_gt)
-        loss.backward()
-
-        optimizer.step()
-        iter = (epoch - 1) * len(loader) + i
-        if iter % log_param['log_freq'] == 0:
-            log_param['cur_step'] += 1
-            log_param['logger'].log_scalar(loss, 'loss', log_param['cur_step'])
-        
-            n_img = output.shape[0]
-            for i in range(min(4, n_img)):
-                total_img = torch.cat([output[i], target[i]], dim=1)
-                log_param['logger'].log_image(to_img(total_img), f'vel_vs_gt_{i}', log_param['cur_step'], 'HWC')
-                vort_img = torch.cat([vort[i], vort_gt[i]], dim=1)
-                log_param['logger'].log_image(to_img(vort_img), f'vort_vs_gt{i}', log_param['cur_step'], 'HWC')
-            
-            log_param['logger'].flush()
-                
-        loop.set_postfix(loss=f'{loss.item():.6e}')
-        
-    return loss
+from trainer import *
 
 def main():
-    # Initialize training settings
+    # Initialize settings.
     parser = argparse.ArgumentParser(description='Deep fluids: a PyTorch version')
     parser.add_argument('--test',            action='store_true', default=False,   help='selects the test mode')
     parser.add_argument('--no-cuda',         action='store_true', default=False,   help='disables the cuda device')
@@ -71,13 +32,7 @@ def main():
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
-    # Initialize logger.
-    time_now = time.strftime("%Y%m%d_%H-%M-%S", time.localtime())
-    log_dir = os.path.join('log/', args.name + '_' + time_now)
-    os.makedirs(log_dir, exist_ok=True)
-    logger = Logger(log_dir)
-
-    # Initialize torch with kwargs.
+    # Set dataset and loader.
     torch.manual_seed(args.seed)
     device = torch.device("cuda" if use_cuda else "cpu")
     print(f'\033[36m[*] Device: {device}\033[0m')
@@ -90,7 +45,7 @@ def main():
     dataset = FluidDataset("data/" + args.name)
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
     
-    # Set network and run.
+    # Set network.
     model = DFModel(
         dataset.cnt_p,
         args.num_chnl,
@@ -98,23 +53,20 @@ def main():
         (dataset.res_y, dataset.res_x, (2 if args.no_curl else 1))
     )
     model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
-
-    log_param = {
-        'logger': logger,
-        'log_freq': args.log_freq,
-        'cur_step': 0
-    }
-    
-    for epoch in range(1, args.epochs + 1):
-        if not args.test:
-            loss = train(args, model, device, loader, optimizer, epoch, log_param)
-        else:
-            pass
-        scheduler.step()
 
     if not args.test:
+        # Set logger.
+        time_now = time.strftime("%Y%m%d_%H-%M-%S", time.localtime())
+        log_dir = os.path.join('log/', args.name + '_' + time_now)
+        os.makedirs(log_dir, exist_ok=True)
+        logger = Logger(log_dir, args.log_freq)
+
+        # Set trainer.
+        optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
+
+        train(model, device, loader, optimizer, scheduler, args.epochs, logger)
+
         torch.save(model.state_dict(), os.path.join(log_dir, 'weight.pt'))
 
 if __name__ == '__main__':
