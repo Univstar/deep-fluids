@@ -10,6 +10,12 @@ from util import *
 import os
 from logger import Logger
 
+def to_img(img):
+    if img.shape[-1] < 3:
+        shape = list(img.shape[:-1]) + [3 - img.shape[-1]]
+        img = torch.cat((img, torch.zeros(shape)), dim = -1)
+    return torch.clamp(img + 0.5, 0, 1)
+
 def train(args, model, device, loader, optimizer, epoch, log_param):
     model.train()
     loop = tqdm(loader, total=len(loader))
@@ -36,7 +42,15 @@ def train(args, model, device, loader, optimizer, epoch, log_param):
         if itr % log_param['log_freq'] ==0:
             log_param['cur_step'] += 1
             log_param['logger'].log_scalar(loss, 'loss', log_param['cur_step'])
+        
+            n_img = output.shape[0]
+            for i in range(min(4, n_img)):
+                total_img = torch.cat([output[i], target[i]], dim = 1)
+                log_param['logger'].log_image( to_img(total_img), f'output_vs_target_{i}', log_param['cur_step'], 'HWC')
+                log_param['logger'].log_image( to_img(vort[i]), f'vort_{i}', log_param['cur_step'], 'HWC')
+            
             log_param['logger'].flush()
+                
         loop.set_postfix(loss=f'{loss.item():.6e}')
         
     return loss
@@ -47,7 +61,7 @@ def main():
     parser.add_argument('--test',            action='store_true', default=False,  help='selects the test mode')
     parser.add_argument('--no-cuda',         action='store_true', default=False,  help='disables the cuda device')
     parser.add_argument('--use-curl',        action='store_true', default=False,  help='enables curl operator')
-    parser.add_argument('--name',            type=str,                            help='the name of the dataset')
+    parser.add_argument('--name',            type=str,            default='smoke_pos21_size5_f200', help='the name of the dataset')
     parser.add_argument('--batch-size',      type=int,            default=8,      help='input batch size for training (default: 8)')
     parser.add_argument('--test-batch-size', type=int,            default=100,    help='input batch size for testing (default: 100)')
     parser.add_argument('--seed',            type=int,            default=1,      help='random seed (default: 1)')

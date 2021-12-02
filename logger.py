@@ -18,9 +18,9 @@ class Logger:
         """Will log all scalars in the same plot."""
         self._summ_writer.add_scalars('{}_{}'.format(group_name, phase), scalar_dict, step)
 
-    def log_image(self, image, name, step):
+    def log_image(self, image, name, step, data_format = 'CHW'):
         assert(len(image.shape) == 3)  # [C, H, W]
-        self._summ_writer.add_image('{}'.format(name), image, step)
+        self._summ_writer.add_image('{}'.format(name), image, step, dataformats = data_format)
 
     def log_video(self, video_frames, name, step, fps=10):
         assert len(video_frames.shape) == 5, "Need [N, T, C, H, W] input tensor for video logging!"
