@@ -14,11 +14,19 @@ def compare_and_log(model, data_0, target_0, vort_0_gt, logger, iter):
     output_0 = run(model, data_0)
     vort_0 = vorticity(output_0)
 
-    for j in range(data_0.shape[0]):
-        total_img = torch.cat([output_0[j], target_0[j]], dim=1)
-        logger.log_image(to_img(total_img), f'vel_vs_gt_{j}', iter, 'HWC')
-        vort_img = torch.cat([vort_0[j], vort_0_gt[j]], dim=1)
-        logger.log_image(to_img(vort_img), f'vort_vs_gt{j}', iter, 'HWC')                
+    out_vel_img = torch.cat(output_0.split(1), dim=2).squeeze(dim=0).flip([0])
+    tgt_vel_img = torch.cat(target_0.split(1), dim=2).squeeze(dim=0).flip([0])
+    vel_img = torch.cat((out_vel_img, tgt_vel_img), dim=0)
+
+    out_vort_img = torch.cat(vort_0.split(1), dim=2).squeeze(dim=0).flip([0])
+    out_vort_img /= torch.max(torch.abs(out_vort_img))
+    tgt_vort_img = torch.cat(vort_0_gt.split(1), dim=2).squeeze(dim=0).flip([0])
+    tgt_vort_img /= torch.max(torch.abs(tgt_vort_img))
+    vort_img = torch.cat((out_vort_img, tgt_vort_img), dim=0)
+
+    logger.log_image(to_img(vel_img), 'vel_vs_gt', iter, 'HWC')
+    logger.log_image(to_img(vort_img), 'vort_vs_gt', iter, 'HWC')
+
     logger.flush()
 
 def train(model, device, loader, optimizer, scheduler, epochs, batch_0, logger):
