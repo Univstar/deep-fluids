@@ -12,7 +12,7 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--log_dir", type=str, default='data/smoke_pos21_size5_f200')
+parser.add_argument("--log_dir", type=str, default='data/smoke')
 parser.add_argument("--num_param", type=int, default=3)
 parser.add_argument("--path_format", type=str, default='%d_%d_%d.npz')
 parser.add_argument("--p0", type=str, default='src_x_pos')

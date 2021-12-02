@@ -29,3 +29,9 @@ def jacobian(x):
     w = torch.unsqueeze(dvdx - dudy, dim=-1) # vorticity (for visualization)
 
     return j, w
+
+def to_img(img):
+    if img.shape[-1] < 3:
+        shape = list(img.shape[:-1]) + [3 - img.shape[-1]]
+        img = torch.cat((img, torch.zeros(shape)), dim = -1)
+    return torch.clamp(img + 0.5, 0, 1)
