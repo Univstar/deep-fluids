@@ -1,4 +1,6 @@
 __pycache__
-data
-log
+data/*
+log/*
+!data/.gitkeep
+!log/.gitkeep
 waveletNoiseTile.bin

@@ -7,13 +7,17 @@ from tqdm import tqdm
 from data import FluidDataset
 from model import DFModel
 from util import *
+import os
+from logger import Logger
 
-
-def train(args, model, device, loader, optimizer, epoch):
+def train(args, model, device, loader, optimizer, epoch, log_param):
     model.train()
     loop = tqdm(loader, total=len(loader))
     loop.set_description(f'Epoch [{epoch}/{args.epochs}]')
     loss_fn = torch.nn.L1Loss()
+    
+    itr = 0
+    
     for data, target in loop:
         data, target = data.to(device), target.to(device)
         jaco_gt, vort_gt = jacobian(target)
@@ -28,8 +32,14 @@ def train(args, model, device, loader, optimizer, epoch):
         loss.backward()
 
         optimizer.step()
+        itr += 1
+        if itr % log_param['log_freq'] ==0:
+            log_param['cur_step'] += 1
+            log_param['logger'].log_scalar(loss, 'loss', log_param['cur_step'])
+            log_param['logger'].flush()
         loop.set_postfix(loss=f'{loss.item():.6e}')
-
+        
+    return loss
 
 def main():
     # Initialize training settings
@@ -49,6 +59,7 @@ def main():
     parser.add_argument('--beta-2',          type=float,          default=0.999,  help='smoothing coefficient beta_2 (default: 0.999)')
     parser.add_argument('--num-conv',        type=int,            default=4,      help='the number of convolutional layers (default: 4)')
     parser.add_argument('--num-chnl',        type=int,            default=128,    help='the number of channels (default: 128)')
+    parser.add_argument('--log_freq',        type=int,            default=200,    help='num of subiters between two logs (default: 200)')
 
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -66,6 +77,13 @@ def main():
     dataset = FluidDataset("data/" + args.name)
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
 
+    logdir_prefix = args.name+'_'
+    time_now = time.strftime("%Y%m%d %H-%M-%S", time.localtime())
+    log_dir_name = logdir_prefix+time_now
+    log_dir_name = os.path.join('log/', log_dir_name)
+    os.mkdir(log_dir_name)
+    logger = Logger(log_dir_name)
+    
     # Set network and run.
     model = DFModel(
         dataset.cnt_p,
@@ -77,15 +95,20 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 
+    log_param = {
+        'logger': logger,
+        'log_freq': args.log_freq,
+        'cur_step': 0
+    }
+    
     for epoch in range(1, args.epochs + 1):
         if not args.test:
-            train(args, model, device, loader, optimizer, epoch)
+            loss = train(args, model, device, loader, optimizer, epoch, log_param)
         else:
             pass
         scheduler.step()
-
     if not args.test:
-        torch.save(model.state_dict(), "log/" + args.name + "weights.pt")
+        torch.save(model.state_dict(), os.path.join(log_dir_name, 'weight.data'))
 
 if __name__ == '__main__':
     main()
