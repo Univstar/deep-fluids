@@ -38,9 +38,9 @@ def main():
     print(f'\033[36m[*] Device: {device}\033[0m')
     kwargs = {
         'batch_size': (args.test_batch_size if args.test else args.batch_size),
-        'num_workers': args.num_workers
+        'num_workers': args.num_workers,
+        'shuffle': True
     }
-    if not args.test: kwargs.update({'shuffle': True})
     if use_cuda: kwargs.update({'pin_memory': True})
     dataset = FluidDataset("data/" + args.name)
     loader = torch.utils.data.DataLoader(dataset, **kwargs)
@@ -65,7 +65,12 @@ def main():
         optimizer = torch.optim.Adam(model.parameters(), args.lr_max, [args.beta_1, args.beta_2])
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
 
-        train(model, device, loader, optimizer, scheduler, args.epochs, logger)
+        # Sample a batch for comparison randomly.
+        batch_sampler = torch.utils.data.RandomSampler(dataset, replacement=True, num_samples=args.batch_size)
+        batch_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, sampler=batch_sampler)
+        batch = next(iter(batch_loader))
+
+        train(model, device, loader, optimizer, scheduler, args.epochs, batch, logger)
 
         torch.save(model.state_dict(), os.path.join(log_dir, 'weight.pt'))
 
