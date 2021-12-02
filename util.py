@@ -33,5 +33,5 @@ def jacobian(x):
 def to_img(img):
     if img.shape[-1] < 3:
         shape = list(img.shape[:-1]) + [3 - img.shape[-1]]
-        img = torch.cat((img, torch.zeros(shape)), dim = -1)
+        img = torch.cat((img, torch.zeros(shape, device=img.device)), dim = -1)
     return torch.clamp(img + 0.5, 0, 1)
