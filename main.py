@@ -28,7 +28,8 @@ def main():
     parser.add_argument('--num-conv',        type=int,            default=4,       help='the number of convolutional layers (default: 4)')
     parser.add_argument('--num-chnl',        type=int,            default=128,     help='the number of channels (default: 128)')
     parser.add_argument('--log-freq',        type=int,            default=200,     help='num of subiters between two logs (default: 200)')
-
+    
+    
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -73,6 +74,11 @@ def main():
         train(model, device, loader, optimizer, scheduler, args.epochs, batch, logger)
 
         torch.save(model.state_dict(), os.path.join(log_dir, 'weight.pt'))
-
+    else:
+        import tkinter.filedialog as fd
+        data_file = fd.askopenfilename(initialdir='.', filetypes=[('PT','*.pt')])
+        model.load_state_dict(torch.load(open(data_file, 'rb'), map_location=torch.device('cpu')))
+        test(args.name, model, dataset)
+    
 if __name__ == '__main__':
     main()

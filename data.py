@@ -54,6 +54,18 @@ class FluidDataset(Dataset):
             p[i] = (p[i] - ri[0]) / (ri[1] - ri[0]) * 2 - 1
         
         return p, v
-
+    
+    def get_item_by_name(self, name):
+        with np.load(name) as data:
+            v = torch.from_numpy(data['x']).float()
+            p = torch.from_numpy(data['y']).float()
+        
+        # Normalize value to [-1, +1].
+        v /= self.v_max
+        for i, ri in enumerate(self.p_range):
+            p[i] = (p[i] - ri[0]) / (ri[1] - ri[0]) * 2 - 1
+        
+        return p, v
+        
     def __len__(self):
         return len(self.paths)

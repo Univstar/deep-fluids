@@ -51,3 +51,17 @@ def to_img(img):
         shape = list(img.shape[:-1]) + [3 - img.shape[-1]]
         img = torch.cat((img, torch.zeros(shape, device=img.device)), dim=-1)
     return torch.clamp(img * .5 + .5, 0, 1)
+
+def to_img_uint(img):
+    if img.shape[-1] == 1:
+        tmp = torch.ones(img.shape, device=img.device)
+        img_r = torch.cat((tmp, img*2+1, img*2+1), dim=-1)
+        img_b = torch.cat((1-img*2, 1-img*2, tmp), dim=-1)
+        img = torch.cat((img, img, img), dim=-1)
+        img = torch.where(img < 0, img_r, img_b)
+    elif img.shape[-1] == 2:
+        img[torch.abs(img)>1e-3] *= 100
+        img[torch.abs(img)<1e-3] = 0
+        shape = list(img.shape[:-1]) + [3 - img.shape[-1]]
+        img = torch.cat((img, torch.zeros(shape, device=img.device)), dim=-1)
+    return torch.tensor((torch.clamp(img*0.5 + .5, 0, 1)*255).detach(), dtype=torch.uint8)
