@@ -31,3 +31,10 @@ To train:
 python main.py --name=smoke
 python main.py --name=liquid --no-curl
 ```
+
+To test:
+
+```bash
+python main.py --test --name=smoke
+python main.py --test --name=liquid --no-curl
+```
