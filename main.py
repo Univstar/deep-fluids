@@ -76,7 +76,8 @@ def main():
         torch.save(model.state_dict(), os.path.join(log_dir, 'weight.pt'))
     else:
         import tkinter.filedialog as fd
-        data_file = fd.askopenfilename(initialdir='.', filetypes=[('PT','*.pt')])
+        # data_file = fd.askopenfilename(initialdir='.', filetypes=[('PT','*.pt')])
+        data_file = f'{args.name}_weight.pt'
         model.load_state_dict(torch.load(open(data_file, 'rb'), map_location=torch.device('cpu')))
         test(args.name, model, dataset)
     

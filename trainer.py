@@ -67,33 +67,32 @@ def train(model, device, loader, optimizer, scheduler, epochs, batch_0, logger):
 def test(name, model, data_set):
     
     import cv2.cv2 as cv
+    import matplotlib.pyplot as plt
     model.eval()
-    data_name = 'data/liquid/v/0_0_%d.npz'
+    data_name = f'data/{name}/v/0_0_%d.npz'
     idx = 0
     gt = []
     pred = []
-    m = torch.nn.Upsample(scale_factor=10, mode='bilinear', align_corners=True)
+    m = torch.nn.Upsample(scale_factor=1, mode='bilinear')
     for i in range(200):
+        print(i)
         p, v = data_set.get_item_by_name(data_name%i)
         output = m(model(p))
         v = nchw_to_nhwc( m(nhwc_to_nchw(v.unsqueeze(0)))).squeeze(0).flip(0)
-        if output.shape[1] == 1: output = curl(output)
+        if output.shape[1] == 1: output = curl(output).squeeze(0)
         else: output = nchw_to_nhwc(output).squeeze(0)
-        # gt_vort = vorticity(torch.unsqueeze(v, 0)).squeeze(0)
-        # pred_vort = vorticity(torch.unsqueeze(output, 0)).squeeze(0)
-        gt.append(to_img_uint(v).detach().numpy())
-        pred.append(to_img_uint(output.flip(0)).detach().numpy())  
-        # print("???")
-    size = list(reversed(gt[0].shape[:-1]))
-    
-    gt_out = cv.VideoWriter(name+'_gt.avi', cv.VideoWriter_fourcc(*'MJPG'), 20, size)
-    pred_out = cv.VideoWriter(name+'_pred.avi', cv.VideoWriter_fourcc(*'MJPG'), 20, size)
-    
-    for i in range(len(gt)):
-        rgb_img = cv.cvtColor(gt[i], cv.COLOR_RGB2BGR)
-        gt_out.write(rgb_img)
-        rgb_img = cv.cvtColor(pred[i], cv.COLOR_RGB2BGR)
-        pred_out.write(rgb_img)
-    gt_out.release()
-    pred_out.release()
-    
+        
+        gt_vort = vorticity(torch.unsqueeze(v, 0)).squeeze(0)
+        pred_vort = vorticity(torch.unsqueeze(output, 0)).squeeze(0)
+        
+        gt.append(to_img_uint(gt_vort).detach().numpy())
+        pred.append(to_img_uint(pred_vort.flip(0)).detach().numpy())  
+       
+        if i % 5 == 0:
+            plt.imshow(gt[-1])
+            plt.axis('off')
+            plt.savefig(f'png/{name}_gt{i}.png', dpi = 150)
+        
+            plt.imshow(pred[-1])
+            plt.axis('off')
+            plt.savefig(f'png/{name}_pred{i}.png', dpi = 150)

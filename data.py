@@ -11,6 +11,7 @@ class FluidDataset(Dataset):
 
         # Read data generation arguments.
         self.args = {}
+        print(os.path.join(self.dir, 'args.txt'))
         with open(os.path.join(self.dir, 'args.txt'), 'r') as file:
             while True:
                 line = file.readline()
@@ -42,6 +43,7 @@ class FluidDataset(Dataset):
             self.p_num.append(pi_num)
         
         print("\033[0m", end="")
+
 
     def __getitem__(self, index):
         with np.load(self.paths[index]) as data:
